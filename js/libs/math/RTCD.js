@@ -36,10 +36,12 @@ function get2DTriangleArea(a, b, c) {
  Real Time Collision Detection - Page 51
  */
 RTCD.Barycentric = class {
-    constructor() {
+    constructor(triangle) {
         this._a = new THREE.Vector2();
         this._b = new THREE.Vector2();
         this._c = new THREE.Vector2();
+
+        this.setTriangle(triangle);
     }
 
     getAreaOnXYPlane(a, b, c) {
@@ -94,6 +96,37 @@ RTCD.Barycentric = class {
         }
     }
 
-}
+};
+
+
+/*
+ Barycentric coordinates have many uses. Because they are invariant under projection,
+ they can be used to map points between different coordinate systems. They can
+ be used for point-in-triangle testing.
+ */
+
+RTCD.PointInsideTriangle = class{
+    constructor(_triangle) {
+        this.triangle = _triangle;
+        this.barycentric = new RTCD.Barycentric(_triangle);
+    }
+
+    setTriangle(_triangle) {
+        this.triangle = _triangle;
+        this.barycentric.setTriangle(_triangle);
+    }
+
+    isPointInsideTriangle(point) {
+        let barycentricCoordinate = this.barycentric.getBarycentricCoordinate(point);
+
+        return barycentricCoordinate.u >= 0 && barycentricCoordinate.u <= 1 &&
+            barycentricCoordinate.v >= 0 && barycentricCoordinate.v <= 1 &&
+            barycentricCoordinate.w >= 0 && barycentricCoordinate.w <= 1;
+    }
+};
+
+
+
+
 
 
