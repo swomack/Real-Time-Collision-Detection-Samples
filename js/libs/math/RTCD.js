@@ -126,7 +126,30 @@ RTCD.PointInsideTriangle = class{
 };
 
 
+/*
+ Given a normal n and a point P on the plane, all points X on the plane can be
+ categorized by the vector X?P being perpendicular to n, indicated by the dot product
+ of the two vectors being zero. This perpendicularity gives rise to an implicit equation
+ for the plane, the point-normal form of the plane:
+ n · (X ? P) = 0.
+ n.X - n.P = 0
+ (a,b,c).(x,y,z) - d = 0
+ ax + by + cz - d = 0
 
+ ||n|| = sqrt(a^2 + b^2 + c^2)
+ */
+RTCD.Plane = class{
 
+    constructor(_a, _b, _c) {
+        let edge1 = new THREE.Vector3().subVectors(_b, _a);
+        let edge2 = new THREE.Vector3().subVectors(_c, _a);
+        this.normal = edge1.cross(edge2);
+        this.normal.normalize(); // if the normal is normalized then d = distance of plane from origin with unit 1
+                                // if the normal is not normalized, then d = distance of plane from origin with unit ||n||
+
+        this.distance = this.normal.dot(_a); // n.p = d
+    }
+}
+;
 
 
