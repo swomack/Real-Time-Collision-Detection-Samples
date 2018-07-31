@@ -138,7 +138,7 @@ RTCD.PointInsideTriangle = class{
 
  ||n|| = sqrt(a^2 + b^2 + c^2)
  */
-RTCD.Plane = class{
+RTCD.Plane = class {
 
     constructor(_a, _b, _c) {
         let edge1 = new THREE.Vector3().subVectors(_b, _a);
@@ -149,7 +149,51 @@ RTCD.Plane = class{
 
         this.distance = this.normal.dot(_a); // n.p = d
     }
-}
-;
+};
+
+/*
+ Assuming all vertices of the quad ABCD lie in the same plane, the quad
+ is convex if and only if its two diagonals lie fully in the interior of the quad (Figure
+ 3.17a through c). This test is equivalent to testing if the two line segments AC and BD,
+ corresponding to the diagonals, intersect each other. If they do, the quad is convex.
+ If they do not, the quad is concave or self-intersecting.
+
+ It can be shown that the intersection of the segments is equivalent to the points A
+ and C lying on opposite sides of the line through BD, as well as to the points B and
+ D lying on opposite sides of the line through AC. In turn, this test is equivalent to
+ the triangle BDA having opposite winding to BDC, as well as ACD having opposite
+ winding to ACB.The opposite winding can be detected by computing (using the cross
+ products) the normals of the triangles and examining the sign of the dot product
+ between the normals of the triangles to be compared. If the dot product is negative,
+ the normals point in opposing directions, and the triangles therefore wind in opposite
+ order.
+
+ ((B-A)x(C-A)).((D-A)x(C-A))<0 // for triangle ACB and ACD (we are checking B and D are opposite side of AC)
+ ((A-B)x(D-B)).((C-B)x(D-B))<0 // for triangle BDA and BDC (we are checking A and C are opposite side of BD)
+
+ */
+RTCD.isQuadConvex = function(_a, _b, _c, _d) {
+    let diagonal1 = new THREE.Vector3().subVectors(_c, _a).normalize();
+    let edge1 = new THREE.Vector3().subVectors(_b, _a).normalize();
+    let edge2 = new THREE.Vector3().subVectors(_d, _a).normalize();
+
+    if (new THREE.Vector3().crossVectors(edge1, diagonal1).dot(new THREE.Vector3().crossVectors(edge2, diagonal1)) >= 0)
+        return false;
+
+    let diagonal2 = new THREE.Vector3().subVectors(_d, _b).normalize();
+    let edge3 = new THREE.Vector3().subVectors(_a, _b).normalize();
+    let edge4 = new THREE.Vector3().subVectors(_c, _a).normalize();
+
+    return new THREE.Vector3().crossVectors(edge3, diagonal2).dot(new THREE.Vector3().crossVectors(edge4, diagonal2)) < 0;
+};
+
+/*
+Generally, if a polygon is convex or not can be determined in O(n^2) algorithm. We need to check for each edge, all other vertices should be
+in the negative halfspace of the line gone through the endpoints of that edge.
+ */
+RTCD.isPolygonConvex = function(_a, _b, _c, _d) {
+
+};
+
 
 
