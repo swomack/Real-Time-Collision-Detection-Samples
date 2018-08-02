@@ -191,7 +191,114 @@ RTCD.isQuadConvex = function(_a, _b, _c, _d) {
 Generally, if a polygon is convex or not can be determined in O(n^2) algorithm. We need to check for each edge, all other vertices should be
 in the negative halfspace of the line gone through the endpoints of that edge.
  */
-RTCD.isPolygonConvex = function(_a, _b, _c, _d) {
+RTCD.isPolygonConvex = function(_vertices) {
+
+};
+
+
+
+
+/*
+ Let A = (ax , ay), B = (bx , by), and C = (cx , cy) be three 2D points, and let
+ ORIENT2D(A, B, C) be defined as
+ ORIENT2D(A, B, C) =
+
+         |ax ay 1|    | ax-cx ay-cy|
+         |bx by 1|  = | bx-cx by-cy|
+         |cx cy 1|
+
+ If ORIENT2D(A, B, C) > 0, C lies to the left of the directed line AB. Equivalently,
+ the triangle ABC is oriented counterclockwise. When ORIENT2D(A, B, C) < 0, C
+ lies to the right of the directed line AB, and the triangle ABC is oriented clockwise.
+ When ORIENT2D(A, B, C) = 0, the three points are collinear.
+
+ More on - Real Time Collision Detection - Page 33
+ */
+RTCD.Side = {
+    LEFT: "Left",
+    RIGHT: "Right",
+    LINEAR: "Linear"
+};
+
+RTCD.getSide = function(edgeVertex1, edgeVertex2, vertex) {
+
+    let determinant = (edgeVertex1.x - vertex.x) * (edgeVertex2.y - vertex.y) - (edgeVertex2.x - vertex.x) * (edgeVertex1.y - vertex.y);
+
+    if (determinant < 0)
+        return RTCD.Side.LEFT;
+    else if (determinant > 0)
+        return RTCD.Side.RIGHT;
+    else
+        return RTCD.Side.LINEAR;
+};
+
+
+/*
+ One of the most robust and easy to implement 2D convex hull algorithms is Andrew’s
+ algorithm [Andrew79]. In its first pass, it starts by sorting all points in the given point
+ set from left to right. In subsequent second and third passes, chains of edges from
+ the leftmost to the rightmost point are formed, corresponding to the upper and lower
+ half of the convex hull, respectively. With the chains created, the hull is obtained by
+ simply connecting the two chains end to end.
+
+ More on - Real Time Collision Detection - Page 66
+ */
+RTCD.AndrewsConvexHull = function(_vertices) {
+    _vertices.sort(function(a,b) {
+        if (a.x === b.x)
+            return 0;
+        else if (a.x < b.x)
+            return -1;
+
+        return 1;
+    });
+
+    let upChain = [];
+    upChain.push(_vertices[0]);
+    upChain.push(_vertices[1]);
+
+
+    for (let i = 2; i < _vertices.length; i++) {
+        let side;
+        while (upChain.length > 1) {
+            side = RTCD.getSide(upChain[upChain.length - 2], upChain[upChain.length - 1], _vertices[i]);
+
+            if (side !== RTCD.Side.LEFT)
+                break;
+
+            upChain.pop();
+        }
+
+        if (side === RTCD.Side.RIGHT || side === RTCD.Side.LEFT)
+            upChain.push(_vertices[i]);
+    }
+
+    let downChain = [];
+    downChain.push(_vertices[0]);
+    downChain.push(_vertices[1]);
+
+
+    for (let i = 2; i < _vertices.length; i++) {
+        let side;
+        while (downChain.length > 1) {
+            side = RTCD.getSide(downChain[downChain.length - 2], downChain[downChain.length - 1], _vertices[i]);
+
+            if (side !== RTCD.Side.RIGHT)
+                break;
+
+            downChain.pop();
+        }
+
+        if (side === RTCD.Side.RIGHT || side === RTCD.Side.LEFT)
+            downChain.push(_vertices[i]);
+    }
+
+    let convexHull = upChain;
+
+    for (let i = downChain.length - 2; i > 0; i--)
+        convexHull.push(downChain[i]);
+
+    return convexHull;
 
 };
 
