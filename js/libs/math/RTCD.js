@@ -69,6 +69,10 @@ RTCD.Barycentric = class {
     }
 
     setTriangle(triangle) {
+
+        if (!triangle)
+            return;
+
         this.triangle = triangle;
         this.normal = this.triangle.getNormal();
 
@@ -105,7 +109,7 @@ RTCD.Barycentric = class {
  be used for point-in-triangle testing.
  */
 
-RTCD.PointInsideTriangle = class{
+RTCD.PointInsideTriangle = class {
     constructor(_triangle) {
         this.triangle = _triangle;
         this.barycentric = new RTCD.Barycentric(_triangle);
@@ -131,7 +135,7 @@ RTCD.PointInsideTriangle = class{
  categorized by the vector X?P being perpendicular to n, indicated by the dot product
  of the two vectors being zero. This perpendicularity gives rise to an implicit equation
  for the plane, the point-normal form of the plane:
- n · (X ? P) = 0.
+ n ï¿½ (X ? P) = 0.
  n.X - n.P = 0
  (a,b,c).(x,y,z) - d = 0
  ax + by + cz - d = 0
@@ -224,9 +228,9 @@ RTCD.getSide = function(edgeVertex1, edgeVertex2, vertex) {
 
     let determinant = (edgeVertex1.x - vertex.x) * (edgeVertex2.y - vertex.y) - (edgeVertex2.x - vertex.x) * (edgeVertex1.y - vertex.y);
 
-    if (determinant < 0)
+    if (determinant > 0)
         return RTCD.Side.LEFT;
-    else if (determinant > 0)
+    else if (determinant < 0)
         return RTCD.Side.RIGHT;
     else
         return RTCD.Side.LINEAR;
@@ -234,14 +238,14 @@ RTCD.getSide = function(edgeVertex1, edgeVertex2, vertex) {
 
 
 /*
- One of the most robust and easy to implement 2D convex hull algorithms is Andrew’s
+ One of the most robust and easy to implement 2D convex hull algorithms is Andrewï¿½s
  algorithm [Andrew79]. In its first pass, it starts by sorting all points in the given point
  set from left to right. In subsequent second and third passes, chains of edges from
  the leftmost to the rightmost point are formed, corresponding to the upper and lower
  half of the convex hull, respectively. With the chains created, the hull is obtained by
  simply connecting the two chains end to end.
 
- More on - Real Time Collision Detection - Page 66
+ More on - Real Time Collision Detection - Page 65
  */
 RTCD.AndrewsConvexHull = function(_vertices) {
     _vertices.sort(function(a,b) {
@@ -300,6 +304,170 @@ RTCD.AndrewsConvexHull = function(_vertices) {
 
     return convexHull;
 
+};
+
+
+/**
+ * Distance of a point from a line can be calculated from by taking dot product of the position vector of the point with the 
+ * normal of the given line. That means we are calculating the projection of the point on the normal of the line or in other word
+ * we are calculating the normal distance from the point to line
+ */
+
+RTCD.get2DPointDistanceFromLine = function(vertex1, vertex2, point) {
+    let edge = new THREE.Vector2().subVectors(vertex2, vertex1);
+    let normal = new THREE.Vector2().set(-edge.y, edge.x);
+
+    return normal.dot(point);
+};
+
+/*
+ In a first step, the bounding box of the point set is obtained, and in the general case
+ the four extreme points of the set (lying on each of the four sides of the bounding
+ box) are located. Because these points are extreme, they must lie on the convex hull,
+ and thus form a quadrilateralï¿½first approximationï¿½of the convex hull (Figure 3.23, top
+ left). As such, any points lying inside this quadrilateral clearly cannot lie on the convex
+ hull of the point set and can be removed from further consideration (Figure 3.23, top
+ right). Some of the points lying outside the quadrilateral must, however, lie on the
+ hull, and thus the approximation is now refined. For each edge of the quadrilateral,
+ the point outside the edge farthest away from the edge (if any) is located. Because
+ each such point is extreme in the direction perpendicularly away from the edge, it
+ must lie on the hull.Therefore, these points are inserted into the hull, between the two
+ points of the edge they were outside of (Figure 3.23, bottom left).
+
+More on here - https://www.westhoffswelt.de/blog/2009/10/21/calculate-a-convex-hull-the-quickhull-algorithm
+Or in Real Time Collision Detection - Page 66
+ */
+RTCD.QuickHull = class {
+
+    /**
+     * @param {Object} _vertices 
+     */
+    constructor(_vertices) {
+        this.vertices = _vertices;
+        this.convexHull = null;
+        this.pointInsideTriangle = new RTCD.PointInsideTriangle();
+    }
+
+    clear() {
+        this.vertices = null;
+        this.convexHull = null;
+    }
+
+    setVertices(_vertices) {
+        this.vertices = _vertices;
+    }
+
+    getHullPoints() {
+        if (this.convexHull === null) {
+            this.convexHull = this.calculateConvexHull();
+        }
+
+        return this.convexHull;
+    }
+
+    calculateConvexHull() {
+        let minXIndex = this.getMinXPointIndex();
+        let maxXIndex = this.getMaxXPointIndex();
+
+        let convexHull = [];
+        convexHull.push(this.vertices[minXIndex]);
+        convexHull = convexHull.concat(this.getConvexHullFromLine(this.vertices[minXIndex], this.vertices[maxXIndex], this.vertices));
+        convexHull.push(this.vertices[maxXIndex]);
+        convexHull = convexHull.concat(this.getConvexHullFromLine(this.vertices[maxXIndex], this.vertices[minXIndex], this.vertices));
+
+        return convexHull;
+    }
+
+    
+    getMinXPointIndex() {
+        let minX = this.vertices[0].x;
+        let index = 0;
+
+        for (let i = 1; i < this.vertices.length; i++) {
+            if (this.vertices[i].x < minX) {
+                minX = this.vertices[i].x;
+                index = i;
+            }
+        }
+
+        return index;
+    }
+
+    getMaxXPointIndex() {
+        let maxX = this.vertices[0].x;
+        let index = 0;
+
+        for (let i = 1; i < this.vertices.length; i++) {
+            if (this.vertices[i].x > maxX) {
+                maxX = this.vertices[i].x;
+                index = i;
+            }
+        }
+
+        return index;
+    }
+
+    getConvexHullFromLine(vertex1, vertex2, availableVertices) {
+        let convexHull = [];
+
+        // consider only the vertices which are on the left side of the edge
+        let leftSidedVertices = this.getLeftSidedVertices(vertex1, vertex2, availableVertices);
+
+        let farthestPoint = this.getFarthestPointFromLine(vertex1, vertex2, leftSidedVertices);
+
+        if (farthestPoint === null)
+            return convexHull;
+        
+        availableVertices = this.discardPointsInsideTriangle(new THREE.Triangle(vertex1, vertex2, farthestPoint), availableVertices);
+
+        convexHull = convexHull.concat(this.getConvexHullFromLine(vertex1, farthestPoint, availableVertices));
+        convexHull.push(farthestPoint);
+        convexHull = convexHull.concat(this.getConvexHullFromLine(farthestPoint, vertex2, availableVertices));
+
+        return convexHull;
+    }
+
+    getLeftSidedVertices(vertex1, vertex2, availableVertices) {
+        let leftSidedVertices = [];
+
+        availableVertices.forEach(element => {
+            if (RTCD.getSide(vertex1, vertex2, element) === RTCD.Side.LEFT)
+                leftSidedVertices.push(element);
+        });
+
+        return leftSidedVertices;
+    }
+
+    getFarthestPointFromLine(vertex1, vertex2, vertices) {
+        let maxDistance = -1;
+        let farthestPoint = null;
+
+        let vertex2D1 = new THREE.Vector2().set(vertex1.x, vertex1.y);
+        let vertex2D2 = new THREE.Vector2().set(vertex2.x, vertex2.y);
+
+        vertices.forEach((element) => {
+            let distance = RTCD.get2DPointDistanceFromLine(vertex2D1, vertex2D2, new THREE.Vector2().set(element.x, element.y));
+            if (distance > maxDistance) {
+                maxDistance = distance;
+                farthestPoint = element;
+            }
+        });
+
+        return farthestPoint;
+    }
+
+    discardPointsInsideTriangle(triangle, vertices) {
+        let resultantVertices = [];
+
+        this.pointInsideTriangle.setTriangle(triangle);
+
+        vertices.forEach(element => {
+            if (!this.pointInsideTriangle.isPointInsideTriangle(element))
+                resultantVertices.push(element);
+        });
+
+        return resultantVertices;
+    }
 };
 
 

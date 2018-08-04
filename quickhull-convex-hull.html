@@ -1,0 +1,162 @@
+<html>
+<head>
+    <title>QuickHull convex hull</title>
+    <style>
+        body { margin: 0; }
+        canvas { width: 100%; height: 100% }
+    </style>
+</head>
+<body>
+<script src="js/libs/graphics/three.js"></script>
+<script src="js/libs/graphics/OrbitControls.js"></script>
+<script src="js/libs/dat.gui.min.js"></script>
+<script src="js/libs/math/RTCD.js"></script>
+<script>
+
+    'use strict';
+
+    let vertices = [];
+    let sphereGeometry;
+    let sphereMaterial;
+    let sphereContainer;
+    let lineGeometry;
+    let lineMaterial;
+
+    let scene = new THREE.Scene();
+    let camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+    camera.position.z = 5;
+
+    let renderer = new THREE.WebGLRenderer();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
+
+    var directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
+    scene.add(directionalLight);
+
+    let controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true; // an animation loop is required when either damping or auto-rotation are enabled
+    controls.enableRotate = false;
+
+    let quickHull = new RTCD.QuickHull();
+
+    buildPlane();
+
+    function buildPlane() {
+        lineMaterial = new THREE.LineBasicMaterial({
+            color: 0x0000ff
+        });
+
+        let planeGeometry = new THREE.PlaneBufferGeometry(10, 10, 32);
+        let planeMaterial = new THREE.MeshBasicMaterial( {color: 0xffff00, side: THREE.DoubleSide} );
+        let plane = new THREE.Mesh(planeGeometry, planeMaterial);
+        plane.name = "HitTestPlane";
+        scene.add(plane);
+    }
+
+    buildGeometryAndMaterial();
+
+    function buildGeometryAndMaterial() {
+        sphereGeometry = new THREE.SphereBufferGeometry(0.025, 32, 32);
+        sphereMaterial = new THREE.MeshPhongMaterial( {color: 0x0000ff} );
+        lineGeometry = new THREE.BufferGeometry();
+        lineMaterial = new THREE.LineBasicMaterial({
+            color: 0x0000ff
+        });
+
+        sphereContainer = new THREE.Object3D();
+        scene.add(sphereContainer);
+    }
+
+
+    let mouseClickHandler = function() {
+        let raycaster = new THREE.Raycaster();
+        let mouse = new THREE.Vector2();
+        return function(mouseEvent) {
+            mouse.x = (mouseEvent.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = - (mouseEvent.clientY / window.innerHeight) * 2 + 1;
+
+            raycaster.setFromCamera(mouse, camera);
+
+            // calculate objects intersecting the picking ray
+            let intersects = raycaster.intersectObjects([scene.getObjectByName("HitTestPlane")]);
+
+            if (intersects.length > 0) {
+                intersects[0].point.z = 0.1;
+                vertices.push(intersects[0].point);
+                addSphereAt(intersects[0].point);
+            }
+        };
+    }();
+
+    document.addEventListener('click', mouseClickHandler);
+
+    function addSphereAt(vertex) {
+       let sphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
+        sphere.position.copy(vertex);
+
+        sphereContainer.add(sphere);
+    }
+
+    let featureController = {
+        ClearAll: function() {
+            quickHull.clear();
+            vertices = [];
+            sphereContainer.children.forEach(function(obj) {
+                sphereContainer.remove(obj);
+            });
+            sphereContainer.children = [];
+            removeExistingLine();
+        },
+
+        calculateHull: function() {
+            quickHull.setVertices(vertices);
+            let convexHull = quickHull.getHullPoints();
+            removeExistingLine();
+            createLineLoop(convexHull);
+        }
+    };
+
+    function removeExistingLine() {
+        let lineMesh = scene.getObjectByName("Line");
+
+        if (lineMesh) {
+            scene.remove(lineMesh);
+            lineMesh.geometry.dispose();
+        }
+    }
+
+    function createLineLoop(vertices) {
+        lineGeometry.removeAttribute('position');
+        lineGeometry.addAttribute('position', new THREE.BufferAttribute(new Float32Array(vertices.length * 3), 3));
+        let count = 0;
+        vertices.forEach(function(vertex) {
+            lineGeometry.attributes.position.array[count++] = vertex.x;
+            lineGeometry.attributes.position.array[count++] = vertex.y;
+            lineGeometry.attributes.position.array[count++] = vertex.z;
+        });
+
+        lineGeometry.attributes.position.needsUpdate = true;
+
+        let lineMesh = new THREE.LineLoop(lineGeometry, lineMaterial);
+        lineMesh.name = "Line";
+        scene.add(lineMesh);
+    }
+
+    var gui = new dat.GUI();
+    gui.add(featureController, 'ClearAll');
+    gui.add(featureController, 'calculateHull');
+
+
+    var animate = function () {
+        requestAnimationFrame( animate );
+
+        controls.update();
+
+        renderer.render( scene, camera );
+    };
+
+    animate();
+
+</script>
+</body>
+</html>
